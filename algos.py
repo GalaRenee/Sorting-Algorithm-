@@ -1,0 +1,1 @@
+# all 9 algorithms as generators + Big-O metadata
