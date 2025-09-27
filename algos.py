@@ -1,325 +1,427 @@
 # all 9 algorithms as generators + Big-O metadata
+import time 
+from typing import List, Geneterator, Tuple, Dict, Any
 
-from __future__ import annotations
-from typing import List, Dict, Any, Generator, Tuple
-from math import sqrt
-
-State = Tuple[List[int], Dict[str, Any]]
-
-def _yield(a, **meta):
-    """Conveniance: yield a shallow copy and metadata."""
-    yield a[:], meta 
-    
-    
-def bubble_sort(a):
-    a + a[:]
+def bubble_sort(data: List[int]) -> Generator:
+    a = data[:]
+    steps = comps = swaps = 0 
+    start_time = time.time()
     n = len(a)
-    if n <= 1:
-        yield from _yield(a, done=True); return 
-    while True:
-        swapped = False 
-        for i in range(1, n):
-            yield from _yield(a, compare=(i-1, i))
-            if a[i - 1] > a[i]:
-                a[i - 1], a[i] = a[i], a[i-1]
-                swapped = True 
-                yield from _yield(a, swap=(i - 1, i))    
-        n -= 1
-        if not swapped or n<= 1:
-            break
-        yield from _yield(a, done=True)   
+    
+    for i in range(n):
+        for j in range(0, n - i - 1):
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (j, j+1), "time": time.time() - start_time}
+            yield a[:], meta
+            
+            if a[j] > a[j+1]:
+                a[j], a[j+1] = a[j+1], a[j]
+                swaps += 1
+                steps += 1
+                meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (j, j+1), "time": time.time() - start_time}
+                yield a[:], meta 
+                
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+    
+def insertion_sort_gen(data: List[int]) -> Generator:
+    """Insertion sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0 
+    start_time = time.time()
         
-def insertion_sort(a):
-    a = a[:]
-    if len(a) <= 1:
-        yield from _yield(a, done=True); return
     for i in range(1, len(a)):
         key = a[i]
         j = i - 1
-        while j >= 0 and a[j] > key:
-            yield from _yield(a, compare=(j, j +1))
-            a[j + 1] = a[j]
-            j -= 1
-            yield from _yield(a, more=(j + 1, j +2))  
-        a[j + 1] = key
-        yield from _yield(a, insert=j +1)      
-    yield from _yield(a, done=True)     
-    
-def selection_sort(a):
-    a = a[:]
-    n = len(a)
-    if n <= 1:
-        yield from _yield(a, done=True); return 
-    for i in range(n):
-        m = j 
-        for j in range(i + 1, n):
-            yield from _yield(a, compare=(m, j))
-            if a[j] < a[m]:
-                m = j
-        if m != i:
-            a[i], a[m] = a[m], a[i]   
-            yield from _yield(a, swap=(i, m))
-    yield from _yield(a, done=True) 
-              
-                
-def merge_sort(a):
-    """Bottom-up (iteractive) mergesort -> easy to step without recursion."""     
-    a = a[:]
-    n = len(a)
-    if n <= 1:
-        yield from _yield(a, done=True); return
-    aux = a[:]   
-    size = 1
-    while size < n:
-        for lo in range(0, n, 2 * size):
-            mid = min(lo + size, n)    
-            hi = min(lo + 2 * size, n)  
             
-            # merge a[lo:mid] and a[mid:hi] into aux
-            i, j, k = lo, mid, lo
-            while k < hi:
-                if j>= hi or (i < mid and a[i] <= a[j]):
-                    aux[k] = a[i]
-                    i += 1
-                else:
-                    aux[k] = a[i]
-                    j += 1
-                k += 1
+        while j >= 0:
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (j, j+1), "time": time.time() - start_time}
+            yield a[:], meta 
                 
-            # copy back and yield
-            a[lo:hi] = aux[lo:hi]     
-            yield from _yield(a, merge=(lo, hi, size))
-        size *= 2
-    yield from _yield(a, done=True)      
+            if a[j] > key:
+                a[j+1] = a[j]
+                steps += 1
+                j -= 1
+                meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (j+1, j+2), "time": time.time() - start_time}
+                yield a[:], meta
+            else:
+                break
+                
+            a[j+1] = key 
+            steps += 1
+            
+        meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+        yield a[:], meta
+        
+def merge_sort_gen(data: List[int]) -> Generator:
+    """Merge sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0 
+    start_time = time.time()
     
-def quick_sort(a):
-    """Iterative quicksort (Lomuto-ish partition) with yields during partition."""
-    a = a[:]   
-    n = len(a)
-    if n <= 1:
-        yield from _yield(a, done=True); return 
+    def merge(left, mid, right):
+        nonlocal steps, comps, swaps
+        L = a[left:mid+1]
+        R = a[mid+1:right+1]
+        i = j = 0 
+        k = left
         
-    stack = [(0, n - 1)]  
-    while stack:
-        lo, hi = stack.pop()
-        if lo >= hi:
-            continue 
-        
-        # partition (pivot = a[hi])  
-        pivot = a[hi]
-        i = lo 
-        for j in range(lo, hi):
-            yield from _yield(a, compare=(j, hi))
-            if a[j] <= pivot:
-                if i != j:
-                    a[i], a[j] = a[j], a[i]
-                    yield from _yield(a, swap=(i, j))
+        while i < len(L) and j < len(R):
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (left + i, mid + 1 + j), "time": time.time() - start_time}
+            yield a[:], meta
+            
+            if L[i] <= R[j]:
+                a[k] = L[i]
                 i += 1
-            if i != hi:
-                a[i], a[hi] = a[hi], a[i]
-                yield from _yield(a, swap=(i, hi), partition=(lo, hi, i))   
+                
+            else:
+                a[k] = L[i]
+                j += 1
+            k += 1
+            steps += 1
+            yield a[:], {"steps": steps, "comparisons": comps, "swaps": swaps, "time": time.time() - start_time}
+            
+        while i < len(L):
+            a[k] = L[i]
             i += 1
-        if i != hi:
-            a[i], a[hi] = a[hi], a[i]
-            yield from _yield(a, swap=(i, hi), partition=(lo, hi, i))
+            k += 1
+            steps += 1
+            yield a[:], {"steps": steps, "comparisons": comps, "swaps": swaps, "time": time.time() - start_time}
             
-        p = i 
-        # push the larger partition first to reduce stack depth 
-        left = (lo, p - 1)
-        right = (p + 1, hi)   
-        if (left[1] - left[0]) > (right[1] - right[0]):
-            stack.append(left); stack.append(right)
-        else:
-            stack.append(right); stack.append(left)
-            
-    yield from _yield(a, done=True)   
+        while j < len(R):
+            a[k] = R[j]
+            j += 1
+            k += 1
+            steps += 1
+            yield a[:], {"steps": steps, "comparisons": comps, "swaps": swaps, "time": time.time() - start_time}
     
-def heap_sort(a):
-    a = a[:]
-    n = len(a)
-    if n <= 1:
-        yield from _yield(a, done=True); return 
+    def mergesort(left, right):
+         if left< right:
+             mid = (left + right) // 2
+             yield from mergesort(left, mid)
+             yield from mergesort(mid + 1, right)
+             yield from merge(left, mid, right)
+    
+    if len(a) > 1:
+        yield from mergesort(0, len(a) - 1)
         
-    def heapify(end, i):
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta  
+    
+def quick_sort_gen(data: List[int]) -> Generator: 
+    """Quick sort that yields each step"""  
+    a = data[:]
+    steps = comps = swaps = 0 
+    start_time = time.time()
+    
+    def partition(low, high):
+        nonlocal steps, comps, swaps
+        pivot = a[high]
+        i = low - 1
+        
+        for j in range(low, high):
+            comps += 1
+            if i != j:
+                a[i], a[j] = a[j], a[i]
+                swaps += 1
+                steps += 1
+                meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (i, j), "time": time.time() - start_time}
+                yield a[:], meta
+                
+        if i + 1 != high:
+            a[i + 1], a[high] = a[high], a[i + 1]
+            swaps += 1
+            steps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (i + 1, high), "time": time.time() - start_time}
+            yield a[:], meta
+            
+        return i + 1
+    
+    def quicksort(low, high):
+        if low < high:
+            gen = partition(low, high)
+            pi = None
+            for state, meta in gen:
+                yield state, meta
+                if "swap" in meta and meta["swap"][i] == high:
+                    pi = meta["swap"][0]
+                    
+            if pi is None:
+                pi = high
+                
+            yield from quicksort(low, pi - 1)
+            yield from quicksort(pi + 1, high)
+            
+    if len(a) > 1:
+        yield from quicksort(0, len(a) - 1)
+        
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+def heap_sort_gen(data: List[int]) -> Generator:
+    """Heap sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0 
+    start_time = time.time()
+    n = len(a)
+    
+    def heapify(n, i):
+        nonlocal steps, comps, swaps
         largest = i 
         l = 2 * i + 1
         r = 2 * i + 2
-        if 1 < end:
-            yield from _yield(a, compare=(largest, 1))
-            if a[1] > a[largest]:
-                largest = 1
-        if r < end:
-            yield from _yield(a, compare=(largest, r))   
+        
+        if l < n:
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (largest, l), "time": time.time() - start_time}
+            yield a[:], meta
+            if a[l] > a[largest]:
+                largest = l
+                
+        if r < n:
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (largest, r), "time": time.time() - start_time}
+            yield a[:], meta
             if a[r] > a[largest]:
                 largest = r
+                
         if largest != i:
             a[i], a[largest] = a[largest], a[i]
-            yield from _yield(a, swap=(i, largest), heapify=(i, largest))
-            yield from heapify(end, largest)
-                
-     # build max-heap
+            swaps += 1
+            steps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (i, largest), "time": time.time() - start_time}
+            yield a[:], meta
+            yield from heapify(n, largest)
+            
+    # Build heap
     for i in range(n // 2 - 1, -1, -1):
         yield from heapify(n, i)
         
+    # Extract elements 
+    for i in range(n - 1, 0, -1):
+        a[0], a[i] = a[i], a[0]
+        swaps += 1
+        steps += 1
+        meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (0, i), "time": time.time() - start_time}
+        yield a[:], meta
+        yield from heapify(i, 0)
         
-    # extract 
-    for end in range(n - 1, 0, -1):
-        a[0], a[end] = a[end], a[0]
-        yield from _yield(a, swap=(0, end))
-        yield from heapify(end, 0)
-        
-    yield from _yield(a, done=True) 
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
     
+def counting_sort_gen(data: List[int]) -> Generator:
+    """Counting sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0
+    start_time = time.time()
     
-def counting_sort(a):
-    """Stable counting sort for non-negative integers. Complexity: O(n +k) where k = max(a) + 1"""    
-    a = a[:]
     if not a:
-        yield from _yield(a, done=True); return 
-    if min(a) < 0:
-        yield from _yield(a, error="counting_sort requires non-negative integers")
-        return 
-    
-    k = max(a) + 1
-    cnt = [0] * k 
-    for v in a:
-        cnt[v] += 1
-        yield from _yield(a, count=v)
-        
-    total = 0
-    for i in range(k):
-        total, cnt[i] = total + cnt[i], total
-        
-    out = [0] * len(a)
-    for v in a:
-        out[cnt[v]] = v
-        cnt[v] += 1
-    a[:] = out
-    yield from _yield(a, pass_done=True)  
-    yield from _yield(a, done=True)
-    
-    
-def radix_sort(a, base=10):
-    """LSD Radix Sort for non-negative integers. Complexity: O(d * (n + base)) where d = number of digits."""
-    a = a[:]
-    if not a:
-        yield from _yield(a, done=True); return
-    if min(a) < 0:
-        yield from _yield(a, error="radix_sort requires non-negative integers")
+        yield a[:], {"steps": 0, "comparisons": 0, "swaps": 0, "done": True, "time": 0}
         return
     
-    m = max(a)
-    exp = 1 
-    while m // exp > 0:
-        # counting by digits 
-        cnt = [0] * base
-        out = [0] * len(a)
-        for v in a:
-            d = (v // exp) % base 
-            cnt[d] += 1
-            yield from _yield(a, count=d)
-        for i in range(1, base):
-            cnt[i] += cnt[i - 1] 
-        for v in reversed(a):
-            d = (v // exp) % base 
-            cnt[d] -= 1
-            out[cnt[d]] = v
-        a[:] = out 
-        exp *= base 
-        yield from _yield(a, pass_done=True) 
-    yield from _yield(a, done=True) 
+    # Find range
+    max_val = max(a)
+    min_val = min(a)
+    range_val = max_val - min_val + 1
     
     
-def bucket_sort(a, num_buckets=None):
-          """Bucket sort distributes values into buckets based on normalized value range. Sorts each bucket with insertion sort and concatenates."""
-          a = a[:]
-          n = len(a)
-          if n <= 1:
-              yield from _yield(a, done=True); 
-              return 
-              
-          lo, hi = min(a), max(a)
-          if lo == hi:
-              # already all equal
-              yield from _yield(a, done=True); 
-              return 
-              
-          # Choose bucket count: sqrt(n) is common heuristic (>= 2)
-          if num_buckets is None:
-              num_buckets = max(2, int(sqrt(n)))   
-              
-          span = hi - lo + 1
-          buckets = [[] for _ in range(num_buckets)]   
-          
-          # Distribute with normalization to [0, num_buckets-1]   
-          for v in a:
-              idx = int((v - lo) * num_buckets / span)
-              if idx == num_buckets: # clamp edge
-                  idx -= 1
-              buckets[idx].append(v)
-              yield from _yield(a, bucket_put=(idx, len(buckets[idx]) -1))
-              
-           # Helper: insertion sort a single bucket (in-place), yielding as we  move to output
-def _ins(bucket):
-            for i in range(1, len(bucket)):
-                key = bucket[i]
-                j = i - 1
-                while j >= 0 and bucket[j] > key:
-                    bucket[j + 1] = bucket[j]
-                    j -= 1
-                    bucket[j + 1] = key
-                   
-            # Collect back into a 
-                out_i = 0
-                for k, bucket in enumerate(bucket):
-                    if len(bucket) > 1:
-                        _ins(bucket)
-                    for pos, v in enumerate(bucket):
-                        a[out_i] = v
-                    yield from _yield(a, bucket_collect=(k, pos, out_i))
-                    out_i += 1
+    # Count occurences 
+    count = [0] * range_val
+    for i, val in enumerate(a):
+        count[val - min_val] += 1
+        steps += 1
+        meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [i], "time": time.time() - start_time}
+        yield a[:], meta
+        
+        
+    # Reconstruct array 
+    output = [0] * len(a)
+    idx = 0 
+    for i in range(range_val):
+        while count[i] > 0:
+            output[idx] = i + min_val
+            count[i] -= 1
+            idx += 1
+            steps += 1
+            # Update original array to show progress
+            a[:idx] = output[:idx]
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [idx-1], "time": time.time() - start_time}
+            yield a[:], meta
+            
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+def radix_sort_gen(data: List[int]) -> Generator:
+    """Radix sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0
+    start_time = time.time()
+    
+    if not a :
+        yield a[i], {"steps": 0, "comparisons": 0, "swaps": 0, "done": True, "time": 0}
+        return
+    
+    max_val = max(a)
+    exp = 1
+    
+    while max_val // exp > 0:
+        # Counting sort for current digit
+        output = [0] * len(a)
+        count = [0] * 10
+        
+        # Count occurances of each digit 
+        for i in range(len(a)):
+            index = (a[i] // exp) % 10
+            count[index] += 1
+            steps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [i], "time": time.time() - start_time}
+            yield a[:], meta
+            
+        # Change count[i] to actual position 
+        for i in range(1, 10):
+            count[i] += count[i - 1]
+            
+        # Build output array
+        for i in range(len(a)- 1, -1, -1):
+            index = (a[i] // exp) % 10
+            output[count[index] - 1] = a[i]
+            count[index] -= 1
+            steps += 1
+            
+        # Copy output array to original array 
+        for i in range(len(a)):
+            a[i] = output[i]
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [i], "time": time.time() - start_time}
+            yield a[:], meta
+        
+        exp *= 10
+    
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+def bucket_sort_gen(data: List[int]) -> Generator:
+    """Bucket sort that yields each step"""
+    a = data[:]
+    steps = comps = swaps = 0
+    start_time = time.time()
+    
+    if len(a) <= 1:
+        yield a[:], {"steps": 0, "comparisons": 0, "swaps": 0, "done": True, "time": 0}
+        return
+    
+    # Create buckets
+    bucket_count = len(a)
+    max_val = max(a)
+    min_val + min(a)
+    range_val = max_val - min_val + 1
+    
+    buckets = [[] for _ in range(bucket_count)]
+    
+    # Distribute elements into buckets
+    for i, val in enumerate(a):
+        bucket_index = min(bucket_count - 1, (val - min_val) * bucket_count // range_val)
+        buckets[bucket_index].append(val)
+        steps += 1
+        meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [i], "time": time.time() - start_time}
+        yield a[:], meta
+        
+    # Sort individual buckets and concentrate
+    result = []
+    for bucket in buckets:
+        if bucket:
+            bucket.sort() # Using built-in sort for simplicity 
+            result.extend(bucket)
+            
+    # Copy back to original array
+    for i, val in enumerate(result):
+        a[i] = val 
+        steps += 1
+        meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "highlight": [i], "time": time.time() - start_time}
+        yield a[:], meta
+    
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+def quick_select_sort_gen(data: List[int]) -> Generator:
+    """Quick select adapted for sorting (essentially quicksort)"""
+    
+    a = data[:]
+    steps = comps = swaps = 0
+    start_time = time.time()
+    
+    def partition(low, high):
+        nonlocal steps, comps, swaps
+        pivot = a[high]
+        i = low - 1
+        
+        for j in range(low, high):
+            comps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "compare": (j, high), "time": time.time() - start_time}
+            yield a[:], meta
+            
+            if a[j] <= pivot:
+                i += 1
+                if i != j:
+                    a[i], a[j] = a[j], a[i]
+                    swaps += 1
+                    steps += 1
+                    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (i, j), "time": time.time() - start_time}
+                    yield a[:], meta
                     
-                yield from _yield(a, done=True)   
-             
-# -----------------------------------------------------------------------------------------
-# Registry + helpers
-# -----------------------------------------------------------------------------------------
-
-ALGORITHMS: Dict[str, Dict[str, Any]] = {
-    "Bubble":    {"fn": bubble_sort,      "big_o": "Avg/Worst: O(n^2)"},
-    "Insertion": {"fn": insertion_sort,   "big_o": "Avg/Worst: O(n^2)"},
-    "Selection": {"fn": selection_sort,   "big_o": "O(n^2)"}, 
-    "Merge":     {"fn": merge_sort,       "big_o": "O(n log n)"},
-    "Quick":     {"fn": quick_sort,       "big_o": "Avg: O(n log n), Worst: O(n^2)"},
-    "Heap":      {"fn": heap_sort,        "big_o": "O(n log n)"},
-    "Counting":  {"fn": counting_sort,    "big_o": "O(n + k)"},
-    "Radix":     {"fn": radix_sort,       "big_o": "O(d *(n + base))" },
-    "Bucket":    {"fn": bucket_sort,      "big_o": " approximately O(n) average (uniform)" },
-}
-
-def get_generator(name: str, arr: List[int]) -> Generator[State, None, None]:
-    """Create a generator for a registered algorithm by name."""
-    return ALGORITHMS[name]["fn"](arr)
-
-def is_sorted(a: List[int]) -> bool:
-    return all(a[i] <= a[i + 1] for i in range(len(a) - 1))
-
-# Optional quick self-test
-if __name__ == "__main__":
-    data = [3, 1, 4, 1, 2, 0, 5, 3, 2]
-    for name in ALGORITHMS:
-        print(f"\n== {name} ==")
-        gen = get_generator(name, data)
-        last = None
-        steps = 0 
-        try: 
+        if i + 1 != high:
+            a[i + 1], a[high] = a[high], a[i + 1]
+            swaps += 1
+            steps += 1
+            meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "swap": (i + 1, high), "time": time.time() - start_time}
+            yield a[:], meta
+        
+        return i + 1
+    
+    def quickselect_sort(low, high):
+        if low < high:
+            gen = partition(low, high)
+            pi = None
             for state, meta in gen:
-                steps += 1
-                last = state
-            print(f"steps: {steps}, sorted: {is_sorted(last)}, result: {last}")  
-        except ValueError as e:
-            print(f"skipped ({e})")      
-         
-                   
-     
-         
+                yield state, meta
+                if "swap" in meta and meta["swap"][1] == high:
+                    pi = meta["swap"][0]
+                    
+            if pi is None:
+                pi = high
+                
+            yield from quickselect_sort(low, pi - 1)
+            yield from quickselect_sort(pi + 1, high)
+            
+    if len(a) > 1:
+        yield from quickselect_sort(0, len(a) - 1)
+    
+    meta = {"steps": steps, "comparisons": comps, "swaps": swaps, "done": True, "time": time.time() - start_time}
+    yield a[:], meta
+    
+def get_generator(name: str, data: List[int]):
+    """Get sorting algorithm generator by name"""
+    if "Bubble" in name:
+        return bubble_sort_gen(data)
+    elif "Insertion" in name:
+        return insertion_sort_gen(data)
+    elif "Merge" in name:
+        return merge_sort_gen(data)
+    elif "Quick Sort" in name:
+        return quick_sort_gen(data)
+    elif "Heap" in name:
+        return heap_sort_gen(data)
+    elif "Counting" in name:
+        return counting_sort_gen(data)
+    elif "Radix" in name:
+        return radix_sort_gen(data)
+    elif "Bucket" in name:
+        return bucket_sort_gen(data)
+    elif "Quick Select" in name:
+        return quick_select_sort_gen(data)
+    else:
+        # Default to bubble sort for unimplemented algorithms
+        return bubble_sort_gen(data)
+    
